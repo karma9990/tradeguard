@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum TradeSide {
+  BUY
+  SELL
+  LONG
+  SHORT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  plan          Plan      @default(FREE)
+  stripeId      String?   @unique
+
+  revengeWindowMinutes Int @default(10)
+  cooldownMinutes      Int @default(15)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  checklistItems   ChecklistItem[]
+  trades           Trade[]
+  cooldownSessions CooldownSession[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  question  String
+  order     Int
+  required  Boolean  @default(true)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses TradeChecklistResponse[]
+}
+
+model Trade {
+  id               String    @id @default(cuid())
+  userId           String
+  ticker           String
+  side             TradeSide
+  quantity         Float
+  entryPrice       Float
+  exitPrice        Float?
+  pnl              Float?
+  entryAt          DateTime
+  exitAt           DateTime?
+  isRevengeFlagged Boolean   @default(false)
+  notes            String?
+  createdAt        DateTime  @default(now())
+
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checklistResponses TradeChecklistResponse[]
+}
+
+model TradeChecklistResponse {
+  id              String  @id @default(cuid())
+  tradeId         String
+  checklistItemId String
+  answer          Boolean
+
+  trade         Trade         @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  checklistItem ChecklistItem @relation(fields: [checklistItemId], references: [id])
+
+  @@unique([tradeId, checklistItemId])
+}
+
+model CooldownSession {
+  id        String   @id @default(cuid())
+  userId    String
+  endsAt    DateTime
+  reason    String
+  dismissed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
